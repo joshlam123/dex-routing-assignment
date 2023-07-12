@@ -1,55 +1,106 @@
-import { DexService } from "../DexService";
-import { Test } from "@nestjs/testing";
-import { TestingModule } from "@nestjs/testing";
+import { DexService } from '../DexService'
+import { Test, TestingModule } from '@nestjs/testing'
+import { DexRoutingModule } from '../DexRoutingModule'
 
+let testingModule: TestingModule
+let dexService: DexService
 
-describe('DexService', () => {
-    let service: DexService;
-  
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [DexService],
-      }).compile();
-  
-      service = module.get<DexService>(DexService);
-    });
+beforeAll(async () => {
+  testingModule = await Test.createTestingModule({
+    imports: [
+      DexRoutingModule
+    ]
+  }).compile()
+  await testingModule.init()
+  dexService = testingModule.get<DexService>(DexService)
+})
 
-    it('should return all pool pairs', async () => {
-      const pools = await service.listPools();
-      expect(pools).toBeInstanceOf(Array);
-      // Add more assertions based on the expected results
-    });
+afterAll(async () => {
+  await testingModule.close()
+  jest.clearAllMocks()
+})
 
-    // Test that DexService.getPool() returns null for an unknown pool pair:
-    it('should return null for an unknown pool pair', async () => {
-        const pool = await service.getPool('UNKNOWN');
-        expect(pool).toBeNull();
-      });
+it('should provide example dex state', async () => {
+  expect(await dexService.listPools())
+    .toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: 'ETH-DFI' }),
+        expect.objectContaining({ symbol: 'BTC-DFI' }),
+        expect.objectContaining({ symbol: 'DOGE-DFI' }),
+        expect.objectContaining({ symbol: 'DOGE-ETH' }),
+        expect.objectContaining({ symbol: 'BTC-ETH' })
+      ])
+    )
+})
 
-    // 
-    it('should fetch a list of pool pairs', async () => {
-        const poolPairs = await service.listPools();
-        expect(poolPairs).toHaveLength(10); // Assuming 10 pool pairs are fetched
-        // Additional assertions for the retrieved pool pairs
-        expect(poolPairs[0].symbol).toBe('POOL1');
-        expect(poolPairs[0].tokenA).toBe('TOKEN1');
-        expect(poolPairs[0].tokenB).toBe('TOKEN2');
-        expect(poolPairs[0].priceRatio).toBe(0.5);
-        // ... additional assertions for other pool pairs
-      });
-    
-      it('should handle errors when fetching pool pairs', async () => {
-        // Mock the DexService to simulate an error during fetchPools()
-        DexService.fetchPools = jest.fn().mockRejectedValue(new Error('Failed to fetch pool pairs'));
-        
-        await expect(DexService.listPools()).rejects.toThrow('Failed to fetch pool pairs');
-      });
+it('should get pool by symbol', async () => {
+  expect(await dexService.getPool('ETH-DFI'))
+    .toStrictEqual({
+      symbol: 'ETH-DFI',
+      tokenA: 'ETH',
+      tokenB: 'DFI',
+      priceRatio: [1, 5]
+    })
+})
 
-    // Test that DexService.getPool() returns the correct pool pair:
-    it('should return the correct pool pair', async () => {
-        const pool = await service.getPool('DOGE-BTC');
-        expect(pool).toEqual({ /* expected pool pair */ });
-      });
-  
-  });
-  
+it('should provide all tokens', async () => {
+  expect(await dexService.listTokens())
+    .toStrictEqual(
+      expect.arrayContaining([
+        'ETH',
+        'DFI',
+        'BTC',
+        'DOGE'
+      ])
+    )
+})
+
+// This doesn't really test anything, it's just an
+// example of how we can simulate different dex states
+it('should provide mocked state', async () => {
+  jest.spyOn(dexService, 'listPools')
+    .mockReturnValue(new Promise(resolve => {
+      resolve([
+        {
+          symbol: 'AAPL-TSLA',
+          tokenA: 'AAPL',
+          tokenB: 'TSLA',
+          priceRatio: [1, 1]
+        },
+        {
+          symbol: 'NFLX-GOOGL',
+          tokenA: 'NFLX',
+          tokenB: 'GOOGL',
+          priceRatio: [7, 13]
+        }
+      ])
+    }))
+
+  expect(await dexService.listPools()).toStrictEqual([
+    {
+      symbol: 'AAPL-TSLA',
+      tokenA: 'AAPL',
+      tokenB: 'TSLA',
+      priceRatio: [1, 1]
+    },
+    {
+      symbol: 'NFLX-GOOGL',
+      tokenA: 'NFLX',
+      tokenB: 'GOOGL',
+      priceRatio: [7, 13]
+    }
+  ])
+
+  expect(await dexService.listTokens()).toStrictEqual(
+    expect.arrayContaining([
+      'AAPL', 'TSLA', 'NFLX', 'GOOGL'
+    ])
+  )
+
+  expect(await dexService.getPool('NFLX-GOOGL')).toStrictEqual({
+    symbol: 'NFLX-GOOGL',
+    tokenA: 'NFLX',
+    tokenB: 'GOOGL',
+    priceRatio: [7, 13]
+  })
+})
