@@ -1,215 +1,166 @@
-import { Injectable } from '@nestjs/common'
-import { DexService, PoolPair, TokenSymbol } from './DexService'
-
-export type EdgeList = Edge[];
-export type AdjacencyMatrix = number[][];
-type Edge = [TokenSymbol, TokenSymbol, number];
-type Path = TokenSymbol[];
-
+import { Injectable } from '@nestjs/common';
+import { PoolPair, TokenSymbol, DexService } from './DexService';
 @Injectable()
 export class DexRoutingService {
-  // TODO: make use of DexService to retrieve the poolPairs state
-  //       and implement the following features
-  constructor(private readonly dexService: DexService) {}
+  private readonly dexService: DexService = new DexService();
 
-  async listAllRoutes (fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<AllRoutesResult> {
-    // Get the pool pairs from the DexService
+  async listAllRoutes(fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<AllRoutesResult> {
     const poolPairs = await this.dexService.listPools();
 
-    // Convert the pool pairs to an adjacency matrix
-    const adjacencyMatrix = convertPoolPairsToAdjacencyMatrix(poolPairs);
+    const routes: PoolPair[][] = [];
+
+    const intermediateTokens = findIntermediateTokens(poolPairs, fromTokenSymbol, toTokenSymbol);
+
+    for (const intermediateToken of intermediateTokens) {
+      const intermediateRoutes = findRoutesWithIntermediateToken(
+        poolPairs,
+        fromTokenSymbol,
+        toTokenSymbol,
+        intermediateToken
+      );
+      routes.push(...intermediateRoutes);
+    }
+
+    // Find direct routes without intermediate tokens
+    const directRoutes = findDirectRoutes(poolPairs, fromTokenSymbol, toTokenSymbol);
+    routes.push(...directRoutes);
     
+    return {
+      fromToken: fromTokenSymbol,
+      toToken: toTokenSymbol,
+      routes,
+    };
+  }
 
-    // Implement Dijkstra's algorithm to find all possible paths
-    const paths = dijkstra(adjacencyMatrix, fromTokenSymbol, toTokenSymbol);
-    const routes: PoolPair[][] = paths.map((path) =>
-      path.map((token, index) => {
-        const nextToken = path[index + 1];
-        const priceRatio: [number, number] = [adjacencyMatrix[token][nextToken], 1 / adjacencyMatrix[token][nextToken]];
-        return { symbol: '', tokenA: token, tokenB: nextToken, priceRatio };
-      })
-    );
+  async getBestRoute(fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<BestRouteResult> {
+    const allRoutes = await this.listAllRoutes(fromTokenSymbol, toTokenSymbol);
+    const bestRoute = findBestRoute(allRoutes.routes);
+    console.log('best route :', bestRoute);
+    let estimatedReturn = calculateRouteReturn(bestRoute);
+    if (bestRoute.length === 0) {
+      if (fromTokenSymbol != toTokenSymbol) {
+        estimatedReturn = 0;
+      }
+    }
 
     return {
       fromToken: fromTokenSymbol,
       toToken: toTokenSymbol,
-      routes: routes // TODO
-    }
+      bestRoute,
+      estimatedReturn: estimatedReturn, // TODO: Calculate the estimated return based on the best route
+    }; 
   }
-
-  async getBestRoute (fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<BestRouteResult> {
-    const poolPairs = await this.dexService.listPools();
-
-    // Convert the pool pairs to an edge list
-    const edgeList = convertPoolPairsToEdgeList(poolPairs);
-
-    // Convert the pool pairs to an adjacency matrix
-    const adjacencyMatrix = convertPoolPairsToAdjacencyMatrix(poolPairs);
-
-    // Implement Bellman-Ford's algorithm to find the best path
-    const path = bellmanFord(edgeList, fromTokenSymbol, toTokenSymbol);
-
-    const bestRoute: PoolPair[] = path.map((token, index) => {
-      const nextToken = path[index + 1];
-      const priceRatio: [number, number] = [adjacencyMatrix[token][nextToken], 1 / adjacencyMatrix[token][nextToken]];
-      return { symbol: '', tokenA: token, tokenB: nextToken, priceRatio };
-    });
-
-    return {
-      fromToken: fromTokenSymbol,
-      toToken: toTokenSymbol,
-      bestRoute: bestRoute, // TODO
-      estimatedReturn: 0
-    }
-  }
-
 }
 
-export function convertPoolPairsToAdjacencyMatrix(poolPairs: PoolPair[]): number[][] {
-  const tokens: string[] = [];
+export function findRoutesWithIntermediateToken(
+  poolPairs: PoolPair[],
+  fromToken: TokenSymbol,
+  toToken: TokenSymbol,
+  intermediateToken: TokenSymbol
+): PoolPair[][] {
+  const routes: PoolPair[][] = [];
+  const intermediatePairs = poolPairs.filter(
+    (pair) =>
+      (pair.tokenA === intermediateToken && pair.tokenB === fromToken) ||
+      (pair.tokenA === fromToken && pair.tokenB === intermediateToken) ||
+      (pair.tokenA === intermediateToken && pair.tokenB === toToken) ||
+      (pair.tokenA === toToken && pair.tokenB === intermediateToken)
+  );
 
-  // Collect unique tokens
-  poolPairs.forEach((pair) => {
-    if (!tokens.includes(pair.tokenA)) {
-      tokens.push(pair.tokenA);
-    }
-    if (!tokens.includes(pair.tokenB)) {
-      tokens.push(pair.tokenB);
-    }
-  });
+  for (const intermediatePair of intermediatePairs) {
+    const startPairs = findDirectRoutes(poolPairs, fromToken, intermediatePair.tokenA);
+    const endPairs = findDirectRoutes(poolPairs, intermediatePair.tokenB, toToken);
 
-  const adjacencyMatrix: number[][] = [];
-
-  // Initialize the adjacency matrix with zeros
-  for (let i = 0; i < tokens.length; i++) {
-    const row: number[] = [];
-    for (let j = 0; j < tokens.length; j++) {
-      row.push(0);
-    }
-    adjacencyMatrix.push(row);
-  }
-
-  // Populate the adjacency matrix with the price ratios
-  poolPairs.forEach((pair) => {
-    const { tokenA, tokenB, priceRatio } = pair;
-    const indexA = tokens.indexOf(tokenA);
-    const indexB = tokens.indexOf(tokenB);
-    adjacencyMatrix[indexA][indexB] = priceRatio[1] / priceRatio[0];
-  });
-
-  return adjacencyMatrix;
-}
-
-export function convertPoolPairsToEdgeList(poolPairs: PoolPair[]): EdgeList {
-  return poolPairs.map(({ tokenA, tokenB, priceRatio }) => [tokenA, tokenB, priceRatio[1] / priceRatio[0]]);
-}
-
-
-export function dijkstra(adjacencyMatrix: AdjacencyMatrix, startNode: string, endNode: string): Path[] {
-  const distances: { [key: string]: number } = {};
-  const visited: { [key: string]: boolean } = {};
-  const previousNodes: { [key: string]: string | null } = {};
-
-  // Initialize distances
-  for (const node in adjacencyMatrix) {
-    distances[node] = Infinity;
-  }
-  distances[startNode] = 0;
-
-  while (true) {
-    let currentNode: string | null = null;
-    let shortestDistance: number = Infinity;
-
-    // Find the node with the shortest distance
-    for (const node in adjacencyMatrix) {
-      if (!visited[node] && distances[node] < shortestDistance) {
-        currentNode = node;
-        shortestDistance = distances[node];
-      }
-    }
-
-    if (currentNode === null) {
-      // No reachable nodes remaining
-      break;
-    }
-
-    visited[currentNode] = true;
-
-    // Update distances and previous nodes for the neighbors of the current node
-    for (const neighbor in adjacencyMatrix[currentNode]) {
-      const weight = adjacencyMatrix[currentNode][neighbor];
-      const distance = distances[currentNode] + weight;
-
-      if (distance < distances[neighbor]) {
-        distances[neighbor] = distance;
-        previousNodes[neighbor] = currentNode;
+    for (const startPair of startPairs) {
+      for (const endPair of endPairs) {
+        const route: PoolPair[] = [];
+        route.push(...startPair);
+        route.push(intermediatePair);
+        route.push(...endPair);
+        routes.push(route);
       }
     }
   }
 
-  // Build the path from endNode to startNode
-  const path: Path[] = [];
-  let currentNode: string | null = endNode;
-  while (currentNode !== null) {
-    const distance = distances[currentNode];
-    if (distance !== undefined) {
-      path.unshift([currentNode, distance.toString()]);
-      currentNode = previousNodes[currentNode];
-    } else {
-      break;
-    }
-  }
-  
-
-  return path;
+  return routes;
 }
 
 
+export function findDirectRoutes(poolPairs: PoolPair[], fromToken: TokenSymbol, toToken: TokenSymbol): PoolPair[][] {
+  const routes: PoolPair[][] = [];
+  const directPairs = poolPairs.filter(
+    (pair) =>
+      (pair.tokenA === fromToken && pair.tokenB === toToken) ||
+      (pair.tokenA === toToken && pair.tokenB === fromToken)
+  );
 
-export function bellmanFord(edgeList: EdgeList, startNode: TokenSymbol, endNode: TokenSymbol): Path {
-  const distances: Record<TokenSymbol, number> = {};
-  const previous: Record<TokenSymbol, TokenSymbol | null> = {};
+  for (const pair of directPairs) {
+    const route: PoolPair[] = [];
 
-  // Initialize distances and previous nodes
-  Object.keys(edgeList).forEach((node) => {
-    distances[node] = Infinity;
-    previous[node] = null;
-  });
+    // If the pair is in the correct order, add it directly to the route
+    if (pair.tokenA === fromToken && pair.tokenB === toToken) {
+      route.push(pair);
+    }
+    // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the route
+    else if (pair.tokenA === toToken && pair.tokenB === fromToken) {
+      const invertedPair: PoolPair = {
+        symbol: `${pair.tokenB}-${pair.tokenA}`,
+        tokenA: pair.tokenB,
+        tokenB: pair.tokenA,
+        priceRatio: [1 / pair.priceRatio[0], 1 / pair.priceRatio[1]]
+      };
+      route.push(invertedPair);
+    }
 
-  distances[startNode] = 0;
-
-  // Relax edges repeatedly
-  for (let i = 0; i < Object.keys(edgeList).length - 1; i++) {
-    edgeList.forEach(([from, to, weight]) => {
-      if (distances[from] + weight < distances[to]) {
-        distances[to] = distances[from] + weight;
-        previous[to] = from;
-      }
-    });
+    routes.push(route);
   }
 
-  // Check for negative cycles
-  let hasNegativeCycle = false;
-  edgeList.forEach(([from, to, weight]) => {
-    if (distances[from] + weight < distances[to]) {
-      hasNegativeCycle = true;
-    }
-  });
-
-  if (hasNegativeCycle) {
-    // Handle negative cycle case
-    return [];
-  } else {
-    // Build the best path
-    const path: Path = [];
-    let current: TokenSymbol | null = endNode;
-    while (current !== null) {
-      path.unshift(current);
-      current = previous[current];
-    }
-    return path;
-  }
+  return routes;
 }
+
+export function findIntermediateTokens(poolPairs: PoolPair[], fromToken: TokenSymbol, toToken: TokenSymbol): TokenSymbol[] {
+  const intermediateTokens = new Set<TokenSymbol>();
+
+  for (const pair of poolPairs) {
+    if (
+      (pair.tokenA === fromToken || pair.tokenB === fromToken) &&
+      (pair.tokenA === toToken || pair.tokenB === toToken)
+    ) {
+      // Found a pool pair that connects the fromToken and toToken directly
+      return [];
+    }
+
+    if (pair.tokenA === fromToken || pair.tokenB === fromToken) {
+      intermediateTokens.add(pair.tokenA === fromToken ? pair.tokenB : pair.tokenA);
+    }
+  }
+
+  return Array.from(intermediateTokens);
+}
+
+export function findBestRoute(routes: PoolPair[][]): PoolPair[] {
+  let bestRoute: PoolPair[] = [];
+
+  for (const route of routes) {
+    if (calculateRouteReturn(route) > calculateRouteReturn(bestRoute)) {
+      bestRoute = route;
+    }
+  }
+
+  return bestRoute;
+}
+
+export function calculateRouteReturn(route: PoolPair[]): number {
+  let returnRatio = 1;
+
+  for (const pair of route) {
+    const [tokenA, tokenB] = pair.priceRatio;
+    returnRatio *= tokenA / tokenB;
+  }
+
+  return returnRatio;
+}
+
 
 export interface AllRoutesResult {
   fromToken: TokenSymbol

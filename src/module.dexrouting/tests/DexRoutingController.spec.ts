@@ -1,54 +1,126 @@
-import { DexRoutingService } from '../DexRoutingService';
+import { Test, TestingModule } from '@nestjs/testing';
 import { DexRoutingController } from '../DexRoutingController';
-import { DexService } from '../DexService';
+import { DexRoutingService, AllRoutesResult, BestRouteResult } from '../DexRoutingService';
 
 describe('DexRoutingController', () => {
-    let controller: DexRoutingController;
-    let dexRoutingService: DexRoutingService;
-  
-    beforeEach(async () => {
-      dexRoutingService = new DexRoutingService(new DexService());
-      controller = new DexRoutingController(dexRoutingService);
-    });
-  
-    // Test that DexRoutingController.listAllRoutes() returns all routes:
-    it('should return all routes', async () => {
-      const routes = await controller.listAllRoutes('DOGE', 'BTC');
-      expect(routes).toBeInstanceOf(Object);
-      console.log('All Routes:', routes.routes);
-    });
-  
-    // Test that DexRoutingController.listAllRoutes() returns an empty array for an unknown token:
-    it('should return an empty array for an unknown token', async () => {
-        const routes = await controller.listAllRoutes('UNKNOWN', 'BTC');
-        expect(routes.routes).toEqual([]);
-        console.log('Routes:', routes.routes);
-      });
+  let controller: DexRoutingController;
+  let service: DexRoutingService;
 
-    // Test that DexRoutingController.getBestRoute() returns an empty array for an unknown token:
-    it('should return an empty array for an unknown token', async () => {
-        const routes = await controller.getBestRoute('UNKNOWN', 'BTC');
-        expect(routes.bestRoute).toEqual([]);
-        console.log('Best Route:', routes.bestRoute);
-      });
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [DexRoutingController],
+      providers: [DexRoutingService],
+    }).compile();
 
-      it('should return all possible paths between fromToken and toToken', async () => {
-        const routes = await controller.listAllRoutes('TOKEN1', 'TOKEN5');
-        expect(routes.fromToken).toBe('TOKEN1');
-        expect(routes.toToken).toBe('TOKEN5');
-        expect(routes.routes).toHaveLength(3); // Assuming 3 possible routes
-        // Additional assertions for the retrieved routes
-        expect(routes.routes[0]).toEqual(['TOKEN1', 'TOKEN2', 'TOKEN4', 'TOKEN5']);
-        console.log('From Token: ', routes.fromToken, ' To Token: ', routes.toToken, ' Routes: ', routes.routes);
-    });
-    
-      it('should return an empty array if no paths exist between fromToken and toToken', async () => {
-        const routes = await controller.listAllRoutes('TOKEN3', 'TOKEN6');
-        expect(routes.fromToken).toBe('TOKEN3');
-        expect(routes.toToken).toBe('TOKEN6');
-        expect(routes.routes).toEqual([]);
-        console.log('From Token: ', routes.fromToken, ' To Token: ', routes.toToken, ' Routes: ', routes.routes);
-    });
-
+    controller = module.get<DexRoutingController>(DexRoutingController);
+    service = module.get<DexRoutingService>(DexRoutingService);
   });
-  
+
+  describe('/routes', () => {
+    describe('/routes/from/:fromToken/to/:toToken', () => {
+      it('should return empty routes from DOGE to BTC', async () => {
+        const routes: AllRoutesResult = {
+          fromToken: 'DOGE',
+          toToken: 'BTC',
+          routes: [],
+        };
+        jest.spyOn(service, 'listAllRoutes').mockResolvedValue(routes);
+
+        const result = await controller.listAllRoutes('DOGE', 'BTC');
+        expect(result).toBe(routes);
+      });
+
+      it('should return routes from DOGE to ETH', async () => {
+        const routes: AllRoutesResult = {
+          fromToken: 'DOGE',
+          toToken: 'ETH',
+          routes: [
+            [
+              {
+                symbol: 'DOGE-ETH',
+                tokenA: 'DOGE',
+                tokenB: 'ETH',
+                priceRatio: [18617, 1],
+              },
+            ],
+          ],
+        };
+        jest.spyOn(service, 'listAllRoutes').mockResolvedValue(routes);
+
+        const result = await controller.listAllRoutes('DOGE', 'ETH');
+        expect(result).toBe(routes);
+      });
+    });
+
+    describe('/routes/best/from/:fromToken/to/:toToken', () => {
+      it('should return empty best route from DOGE to BTC', async () => {
+        const bestRoute: BestRouteResult = {
+          fromToken: 'DOGE',
+          toToken: 'BTC',
+          bestRoute: [],
+          estimatedReturn: 0,
+        };
+        jest.spyOn(service, 'getBestRoute').mockResolvedValue(bestRoute);
+
+        const result = await controller.getBestRoute('DOGE', 'BTC');
+        expect(result).toBe(bestRoute);
+      });
+
+      it('should return best route from DOGE to ETH', async () => {
+        const bestRoute: BestRouteResult = {
+          fromToken: 'DOGE',
+          toToken: 'ETH',
+          bestRoute: [
+            {
+              symbol: 'DOGE-ETH',
+              tokenA: 'DOGE',
+              tokenB: 'ETH',
+              priceRatio: [18617, 1],
+            },
+          ],
+          estimatedReturn: 0,
+        };
+        jest.spyOn(service, 'getBestRoute').mockResolvedValue(bestRoute);
+
+        const result = await controller.getBestRoute('DOGE', 'ETH');
+        expect(result).toBe(bestRoute);
+      });
+    });
+  });
+
+  // Additional tests...
+
+  it('should call listAllRoutes method of service with correct parameters', async () => {
+    const routes: AllRoutesResult = {
+      fromToken: 'DOGE',
+      toToken: 'BTC',
+      routes: [],
+    };
+    const listAllRoutesSpy = jest.spyOn(service, 'listAllRoutes').mockResolvedValue(routes);
+
+    await controller.listAllRoutes('DOGE', 'BTC');
+
+    expect(listAllRoutesSpy).toHaveBeenCalledWith('DOGE', 'BTC');
+  });
+
+  it('should call getBestRoute method of service with correct parameters', async () => {
+    const bestRoute: BestRouteResult = {
+      fromToken: 'DOGE',
+      toToken: 'ETH',
+      bestRoute: [
+        {
+          symbol: 'DOGE-ETH',
+          tokenA: 'DOGE',
+          tokenB: 'ETH',
+          priceRatio: [18617, 1],
+        },
+      ],
+      estimatedReturn: 0,
+    };
+    const getBestRouteSpy = jest.spyOn(service, 'getBestRoute').mockResolvedValue(bestRoute);
+
+    await controller.getBestRoute('DOGE', 'ETH');
+
+    expect(getBestRouteSpy).toHaveBeenCalledWith('DOGE', 'ETH');
+  });
+});

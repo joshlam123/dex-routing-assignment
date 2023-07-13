@@ -13,6 +13,8 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { DexRoutingController } from './DexRoutingController'
 import { DexRoutingModule } from './DexRoutingModule'
+import { PoolPair, TokenSymbol } from './DexService';
+import { calculateRouteReturn } from './DexRoutingService';
 
 let testingModule: TestingModule
 let controller: DexRoutingController
@@ -23,32 +25,56 @@ beforeAll(async () => {
       DexRoutingModule
     ]
   }).compile()
-
+  console.log('Created testing module');
   controller = testingModule.get<DexRoutingController>(DexRoutingController)
+  console.log('Got dex routing controller');
 })
 
 afterAll(async () => {
   await testingModule.close()
 })
 
+// Helper function to create PoolPair object
+
 describe('/routes', () => {
+  function createPoolPair(tokenA: TokenSymbol, tokenB: TokenSymbol, priceRatio: [number, number]): PoolPair {
+    return { symbol: `${tokenA}-${tokenB}`, tokenA, tokenB, priceRatio };
+  }
+
   describe('/routes/from/:fromToken/to/:toToken', () => {
     it('should return all routes from DOGE to BTC', async () => {
-      expect(await controller.listAllRoutes('DOGE', 'BTC')).toStrictEqual({
+      const expectedRoutes = [
+      [createPoolPair('DOGE', 'DFI', [18933, 5]), createPoolPair('BTC', 'DFI', [2, 1337])],
+      [
+        createPoolPair('DOGE', 'ETH', [18617, 1]),
+        createPoolPair('ETH', 'BTC', [1, 132]),
+      ],
+      [
+        createPoolPair('DOGE', 'ETH', [18617, 1]),
+        createPoolPair('ETH', 'DFI', [1, 5]),
+        createPoolPair('BTC', 'DFI', [2, 1337]),
+      ],
+    ];
+      const routes = await controller.listAllRoutes('DOGE', 'BTC')
+      expect(routes).toStrictEqual({
         fromToken: 'DOGE',
         toToken: 'BTC',
-        routes: [] // TODO
+        routes: expectedRoutes
       })
     })
   })
 
   describe('/routes/best/from/:fromToken/to/:toToken', () => {
     it('should return best route from DOGE to BTC', async () => {
-      expect(await controller.getBestRoute('DOGE', 'BTC')).toStrictEqual({
+      const best_route = await controller.getBestRoute('DOGE', 'BTC');
+      expect(best_route).toStrictEqual({
         fromToken: 'DOGE',
         toToken: 'BTC',
-        bestRoute: [], // TODO
-        estimatedReturn: 0
+        bestRoute: controller.getBestRoute('DOGE', 'BTC'), // TODO
+        estimatedReturn: calculateRouteReturn([
+          createPoolPair('DOGE', 'DFI', [18933, 5]),
+          createPoolPair('BTC', 'DFI', [2, 1337]),
+        ])
       })
     })
   })
