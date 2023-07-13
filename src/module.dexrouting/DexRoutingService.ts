@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { DexService, PoolPair, TokenSymbol } from './DexService'
 
 export type EdgeList = Edge[];
-export type AdjacencyMatrix = Record<TokenSymbol, Record<TokenSymbol, number>>;
+export type AdjacencyMatrix = number[][];
 type Edge = [TokenSymbol, TokenSymbol, number];
 type Path = TokenSymbol[];
 
@@ -65,80 +65,106 @@ export class DexRoutingService {
 
 }
 
-export function convertPoolPairsToAdjacencyMatrix(poolPairs: PoolPair[]): AdjacencyMatrix {
-  const matrix: AdjacencyMatrix = {};
-  poolPairs.forEach(({ tokenA, tokenB, priceRatio }) => {
-    if (!matrix[tokenA]) matrix[tokenA] = {};
-    if (!matrix[tokenB]) matrix[tokenB] = {};
-    matrix[tokenA][tokenB] = Number(priceRatio);
-    matrix[tokenA][tokenB] = 1 / Number(priceRatio);
+export function convertPoolPairsToAdjacencyMatrix(poolPairs: PoolPair[]): number[][] {
+  const tokens: string[] = [];
+
+  // Collect unique tokens
+  poolPairs.forEach((pair) => {
+    if (!tokens.includes(pair.tokenA)) {
+      tokens.push(pair.tokenA);
+    }
+    if (!tokens.includes(pair.tokenB)) {
+      tokens.push(pair.tokenB);
+    }
   });
-  return matrix;
+
+  const adjacencyMatrix: number[][] = [];
+
+  // Initialize the adjacency matrix with zeros
+  for (let i = 0; i < tokens.length; i++) {
+    const row: number[] = [];
+    for (let j = 0; j < tokens.length; j++) {
+      row.push(0);
+    }
+    adjacencyMatrix.push(row);
+  }
+
+  // Populate the adjacency matrix with the price ratios
+  poolPairs.forEach((pair) => {
+    const { tokenA, tokenB, priceRatio } = pair;
+    const indexA = tokens.indexOf(tokenA);
+    const indexB = tokens.indexOf(tokenB);
+    adjacencyMatrix[indexA][indexB] = priceRatio[1] / priceRatio[0];
+  });
+
+  return adjacencyMatrix;
 }
 
 export function convertPoolPairsToEdgeList(poolPairs: PoolPair[]): EdgeList {
-  // Assuming poolPairs is an array of objects with properties 'from', 'to', and 'priceRatio'
-  // And assuming that the tokens are represented by numbers
-  const edges: EdgeList = [];
-  poolPairs.forEach(({ tokenA, tokenB, priceRatio }) => {
-    const edge: Edge = [tokenA, tokenB, Number(priceRatio)];
-    edges.push(edge);
-  });
-  return edges;
+  return poolPairs.map(({ tokenA, tokenB, priceRatio }) => [tokenA, tokenB, priceRatio[1] / priceRatio[0]]);
 }
 
-export function dijkstra(adjacencyMatrix: AdjacencyMatrix, startNode: TokenSymbol, endNode: TokenSymbol): Path[] {
-  const distances: Record<TokenSymbol, number> = {};
-  const previous: Record<TokenSymbol, TokenSymbol | null> = {};
 
-  // Initialize distances and previous nodes
-  Object.keys(adjacencyMatrix).forEach((node) => {
-    distances[node] = node === startNode ? 0 : Infinity;
-    previous[node] = null;
-  });  
+export function dijkstra(adjacencyMatrix: AdjacencyMatrix, startNode: string, endNode: string): Path[] {
+  const distances: { [key: string]: number } = {};
+  const visited: { [key: string]: boolean } = {};
+  const previousNodes: { [key: string]: string | null } = {};
 
-  const unvisitedNodes = new Set(Object.keys(adjacencyMatrix));
+  // Initialize distances
+  for (const node in adjacencyMatrix) {
+    distances[node] = Infinity;
+  }
+  distances[startNode] = 0;
 
-  while (unvisitedNodes.size > 0) {
-    let currentNode: TokenSymbol | null = null;
-    let minDistance = Infinity;
+  while (true) {
+    let currentNode: string | null = null;
+    let shortestDistance: number = Infinity;
 
-    unvisitedNodes.forEach((node) => {
-      if (distances[node] < minDistance) {
+    // Find the node with the shortest distance
+    for (const node in adjacencyMatrix) {
+      if (!visited[node] && distances[node] < shortestDistance) {
         currentNode = node;
-        minDistance = distances[node];
+        shortestDistance = distances[node];
       }
-    });
+    }
 
-    if (!currentNode) {
+    if (currentNode === null) {
+      // No reachable nodes remaining
       break;
     }
 
-    unvisitedNodes.delete(currentNode);
+    visited[currentNode] = true;
 
-    Object.entries(adjacencyMatrix[currentNode]).forEach(([neighbor, weight]) => {
-      const distance = distances[currentNode!] + weight;
+    // Update distances and previous nodes for the neighbors of the current node
+    for (const neighbor in adjacencyMatrix[currentNode]) {
+      const weight = adjacencyMatrix[currentNode][neighbor];
+      const distance = distances[currentNode] + weight;
+
       if (distance < distances[neighbor]) {
         distances[neighbor] = distance;
-        previous[neighbor] = currentNode;
+        previousNodes[neighbor] = currentNode;
       }
-    });
+    }
   }
 
-  const paths: Path[] = [];
-  Object.keys(previous).forEach((node) => {
-    if (previous[node]) {
-      const path: Path = [];
-      let current: TokenSymbol | null = node;
-      while (current !== null) {
-        path.unshift(current);
-        current = previous[current];
-      }
-      paths.push(path);
+  // Build the path from endNode to startNode
+  const path: Path[] = [];
+  let currentNode: string | null = endNode;
+  while (currentNode !== null) {
+    const distance = distances[currentNode];
+    if (distance !== undefined) {
+      path.unshift([currentNode, distance.toString()]);
+      currentNode = previousNodes[currentNode];
+    } else {
+      break;
     }
-  });
-  return paths;
+  }
+  
+
+  return path;
 }
+
+
 
 export function bellmanFord(edgeList: EdgeList, startNode: TokenSymbol, endNode: TokenSymbol): Path {
   const distances: Record<TokenSymbol, number> = {};

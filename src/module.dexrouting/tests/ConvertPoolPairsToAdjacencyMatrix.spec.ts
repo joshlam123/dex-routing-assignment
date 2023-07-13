@@ -17,17 +17,17 @@ describe('convertPoolPairsToAdjacencyMatrix', () => {
     ];
 
     const adjacencyMatrix = convertPoolPairsToAdjacencyMatrix(poolPairs);
+    console.log('Adjacency Matrix:', adjacencyMatrix);
     expect(adjacencyMatrix).toEqual([
       [0, 0.5, 2.0, 0],
       [0, 0, 4.0, 0],
       [0, 0, 0, 3.0],
       [0, 0, 0, 0],
     ]);
-    console.log('Adjacency Matrix:', adjacencyMatrix);
   });
 
   it('should return an empty matrix if no pool pairs are provided', () => {
-    const adjacencyMatrix = convertPoolPairsToAdjacencyMatrix({});
+    const adjacencyMatrix = convertPoolPairsToAdjacencyMatrix([]);
     expect(adjacencyMatrix).toEqual([]);
     console.log('Adjacency Matrix:', adjacencyMatrix);
   });
