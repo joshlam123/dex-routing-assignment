@@ -37,22 +37,24 @@ afterAll(async () => {
 // Helper function to create PoolPair object
 
 describe('/routes', () => {
-  function createPoolPair(tokenA: TokenSymbol, tokenB: TokenSymbol, priceRatio: [number, number]): PoolPair {
+  function createPoolPair(tokenA: TokenSymbol, tokenB: TokenSymbol, priceRatio: [number, number], isInverted: boolean = false): PoolPair {
+    const [price1, price2] = isInverted ? [1 / priceRatio[1], 1 / priceRatio[0]] : priceRatio;
     return { symbol: `${tokenA}-${tokenB}`, tokenA, tokenB, priceRatio };
   }
 
   describe('/routes/from/:fromToken/to/:toToken', () => {
     it('should return all routes from DOGE to BTC', async () => {
       const expectedRoutes = [
-      [createPoolPair('DOGE', 'DFI', [18933, 5]), createPoolPair('BTC', 'DFI', [2, 1337])],
+      [createPoolPair('DOGE', 'DFI', [18933, 5]),
+      createPoolPair('BTC', 'DFI', [2, 1337])],
       [
         createPoolPair('DOGE', 'ETH', [18617, 1]),
-        createPoolPair('ETH', 'BTC', [1, 132]),
+        createPoolPair('ETH', 'BTC', [1, 132], true),
       ],
       [
         createPoolPair('DOGE', 'ETH', [18617, 1]),
         createPoolPair('ETH', 'DFI', [1, 5]),
-        createPoolPair('BTC', 'DFI', [2, 1337]),
+        createPoolPair('BTC', 'DFI', [2, 1337], true),
       ],
     ];
       const routes = await controller.listAllRoutes('DOGE', 'BTC')

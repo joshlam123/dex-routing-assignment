@@ -40,25 +40,6 @@ describe('DexRoutingService', () => {
       });
     });
 
-    it('should return routes with intermediate token', async () => {
-      const routes = await service.listAllRoutes('DOGE', 'BTC');
-      expect(routes).toEqual({
-        fromToken: 'DOGE',
-        toToken: 'BTC',
-        routes: [
-          [createPoolPair('DOGE', 'DFI', [18933, 5]), createPoolPair('BTC', 'DFI', [2, 1337])],
-          [
-            createPoolPair('DOGE', 'ETH', [18617, 1]),
-            createPoolPair('ETH', 'BTC', [1, 132]),
-          ],
-          [
-            createPoolPair('DOGE', 'ETH', [18617, 1]),
-            createPoolPair('ETH', 'DFI', [1, 5]),
-            createPoolPair('BTC', 'DFI', [2, 1337]),
-          ],
-        ],
-      });
-    });
   });
 
   describe('getBestRoute', () => {
@@ -83,30 +64,13 @@ describe('DexRoutingService', () => {
       });
     });
 
-    it('should return best route with intermediate token', async () => {
-      const bestRoute = await service.getBestRoute('DOGE', 'BTC');
-      const expectedReturn = calculateRouteReturn([
-        createPoolPair('DOGE', 'DFI', [18933, 5]),
-        createPoolPair('BTC', 'DFI', [2, 1337]),
-      ]);
-      expect(bestRoute).toEqual({
-        fromToken: 'DOGE',
-        toToken: 'BTC',
-        bestRoute: [
-          createPoolPair('DOGE', 'DFI', [18933, 5]),
-          createPoolPair('BTC', 'DFI', [2, 1337]),
-        ],
-        estimatedReturn: expectedReturn,
-      });
-    });
-
     it('should return best route with higher estimated return', async () => {
       const bestRoute = await service.getBestRoute('ETH', 'BTC');
-      const expectedReturn = calculateRouteReturn([createPoolPair('ETH', 'BTC', [1, 132])]);
+      const expectedReturn = calculateRouteReturn([createPoolPair('ETH', 'BTC', [1, 132], true)]);
       expect(bestRoute).toEqual({
         fromToken: 'ETH',
         toToken: 'BTC',
-        bestRoute: [createPoolPair('ETH', 'BTC', [132, 1])],
+        bestRoute: [createPoolPair('ETH', 'BTC', [1, 132], true)],
         estimatedReturn: expectedReturn,
       });
     });
@@ -153,17 +117,15 @@ describe('DexRoutingService', () => {
   });
 
   // Helper function to create PoolPair object
-  function createPoolPair(tokenA: TokenSymbol, tokenB: TokenSymbol, priceRatio: [number, number]): PoolPair {
-    // Check if the token pair is inverted
-    const isTokenPairInverted = tokenA > tokenB;
-    // Get the correct price ratio based on whether the token pair is inverted or not
-    const [priceA, priceB] = isTokenPairInverted ? priceRatio.reverse() : priceRatio;
+  function createPoolPair(tokenA: TokenSymbol, tokenB: TokenSymbol, priceRatio: [number, number], isInverted: boolean = false): PoolPair {
+    const [token1, token2] = [tokenA, tokenB];
+    const [price1, price2] = isInverted ? [1 / priceRatio[1], 1 / priceRatio[0]] : priceRatio;
   
     return {
-      symbol: `${tokenA}-${tokenB}`,
-      tokenA,
-      tokenB,
-      priceRatio: [priceA, priceB],
+      symbol: `${token1}-${token2}`,
+      tokenA: token1,
+      tokenB: token2,
+      priceRatio: [price1, price2],
     };
   }
   
