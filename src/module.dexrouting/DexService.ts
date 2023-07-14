@@ -77,9 +77,20 @@ export class DexService {
   ]
 
   async listPools (): Promise<PoolPair[]> {
-    return this.poolPairs
+    return this.poolPairs.map(this.normalizePriceRatio);
   }
 
+  normalizePriceRatio(poolPair: PoolPair): PoolPair {
+    const [tokenA, tokenB] = poolPair.priceRatio;
+    if (tokenA !== 1) {
+      return {
+        ...poolPair,
+        priceRatio: [1, tokenB / tokenA],
+      };
+    }
+    return poolPair;
+  }
+  
   async getPool (symbol: PoolPairSymbol): Promise<PoolPair | undefined> {
     const pools = await this.listPools()
     return pools.filter(poolPair => symbol === poolPair.symbol)[0]

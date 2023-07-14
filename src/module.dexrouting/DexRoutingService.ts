@@ -45,8 +45,8 @@ export class DexRoutingService {
     }
     console.log('Returned best route: ', bestRoute, ' best return ', bestEstimatedReturn);
     return {
-      fromToken: routes.fromToken,
-      toToken: routes.toToken,
+      fromToken: fromTokenSymbol,
+      toToken: toTokenSymbol,
       bestRoute,
       estimatedReturn: bestEstimatedReturn,
     };
@@ -58,14 +58,15 @@ export function calculateEstimatedReturn(route: PoolPair[]): number {
     const [tokenA, tokenB] = pair.priceRatio;
     // If the trade is made in the same direction as the pool pair, use the price ratio as is 
     if (pair.tokenA === pair.symbol.split('-')[0]) {
-      return total * (tokenA / tokenB);
+      return total * tokenB / tokenA;
     }
     // If the trade is made in the opposite direction, divide the total by the price ratio
     else {
-      return total * (tokenB / tokenA);
+      return total / tokenB * tokenA;
     }
   }, 1);
 }
+
 
 
 export function findRoutesWithIntermediateToken(
@@ -93,7 +94,7 @@ export function findRoutesWithIntermediateToken(
 
     if (currentToken === toToken) {
       routes.push(path);
-      console.log('Current token: ', currentToken, 'Current route: ', path  )
+      // console.log('Current token: ', currentToken, 'Current route: ', path  )
       visited.delete(currentToken);
       return;
     }
@@ -105,43 +106,32 @@ export function findRoutesWithIntermediateToken(
     );
 
     for (const nextPair of nextPairs) {
-      const nextToken = nextPair.tokenA === currentToken ? nextPair.tokenB : nextPair.tokenA;
+      let nextToken;
+      if (nextPair.tokenA === currentToken) {
+        nextToken = nextPair.tokenB;
+      } else if (nextPair.tokenB === currentToken) {
+        nextToken = nextPair.tokenA;
+      } else {
+        continue; // Skip this pair if it doesn't include the current token
+      }
       const nextPath = [...path];
-      console.log(Date.now(),'Current token: ', currentToken, 'next token: ', nextToken, 'next pair: ', `${nextPair.tokenA}-${nextPair.tokenB}`)
+      // console.log(Date.now(),'Current token: ', currentToken, 'next token: ', nextToken, 'next pair: ', `${nextPair.tokenA}-${nextPair.tokenB}`)
 
       // If the pair is in the correct order, add it directly to the path
-      if (nextPair.tokenA === currentToken && nextPair.tokenB === nextToken) {
-        // nextPath.push(nextPair);
-        let nextCurPair: PoolPair = {
-          symbol: nextPair.symbol,
-          tokenA: nextPair.tokenA,
-          tokenB: nextPair.tokenB,
-          priceRatio: [nextPair.priceRatio[0], 1 / nextPair.priceRatio[1]],
-        };
-        nextPath.push(nextCurPair);
-      }
-      // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the path
-      else if (nextPair.tokenA === nextToken && nextPair.tokenB === currentToken) {
-        let nextCurPair: PoolPair = {
-          symbol: `${nextPair.tokenA}-${nextPair.tokenB}`,
-          tokenA: nextPair.tokenA,
-          tokenB: nextPair.tokenB,
-          priceRatio: [1 / nextPair.priceRatio[1], 1 / nextPair.priceRatio[0]],
-        };
-        nextPath.push(nextCurPair);
-      }
-      else
-      {
-        // nextPath.push(nextPair);
-        // nextPath.push(nextPair);
-        let nextCurPair: PoolPair = {
-          symbol: nextPair.symbol,
-          tokenA: nextPair.tokenB,
-          tokenB: nextPair.tokenA,
-          priceRatio: [1 / nextPair.priceRatio[0], nextPair.priceRatio[1]],
-        };
-        nextPath.push(nextCurPair);
-      }
+    if (nextPair.tokenA === currentToken && nextPair.tokenB === nextToken) {
+      nextPath.push(nextPair);
+    }
+    // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the path
+    else if (nextPair.tokenA === nextToken && nextPair.tokenB === currentToken) {
+      const invertedPair : PoolPair = {
+        symbol: `${nextPair.tokenB}-${nextPair.tokenA}`,
+        tokenA: nextPair.tokenB,
+        tokenB: nextPair.tokenA,
+        priceRatio: [nextPair.priceRatio[1], nextPair.priceRatio[0]],
+      };
+      nextPath.push(invertedPair);
+    }
+
 
       dfs(nextToken, nextPath);
     }

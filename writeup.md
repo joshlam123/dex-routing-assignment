@@ -7,11 +7,13 @@ This repository is structured in such a way that:
 
 <p>
 <b> Summary of Approach </b>
+Firstly, I added a normalizePriceRatio function in DexService.ts. The reason is because the price ratios were not in [1, X] format and it was causing a bit of problems when computing the expected Return.
+
 To find routes through an arbitrary number of intermediate tokens, I used a depth-first search (DFS) algorithm. This algorithm will start from the fromToken and explore all possible paths through the graph of pool pairs until it reaches the toToken.
 
 In this modified version of the function, the dfs function is defined to perform a depth-first search from the fromToken to the toToken. It keeps track of the current path and adds it to the list of routes when it reaches the toToken. It also keeps track of the tokens it has visited to avoid cycles. After defining the dfs function, it is called with the fromToken and an empty path to start the search.
 
-However, it seems to be missing some routes in it's initial implementation. This could be because it only considers direct trades between two tokens (i.e., trades where the fromToken is tokenA and the toToken is tokenB in a pool pair) and not inverted trades (i.e., trades where the fromToken is tokenB and the toToken is tokenA).
+In it's initial implementationm missing some routes. This was because it only considers direct trades between two tokens (i.e., trades where the fromToken is tokenA and the toToken is tokenB in a pool pair) and not inverted trades (i.e., trades where the fromToken is tokenB and the toToken is tokenA).
 
 <p>
 <b> Testing </b>
