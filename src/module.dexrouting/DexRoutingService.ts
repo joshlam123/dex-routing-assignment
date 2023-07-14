@@ -56,13 +56,13 @@ export class DexRoutingService {
 export function calculateEstimatedReturn(route: PoolPair[]): number {
   return route.reduce((total, pair) => {
     const [tokenA, tokenB] = pair.priceRatio;
-    // If the trade is made in the same direction as the pool pair, use the price ratio as is
+    // If the trade is made in the same direction as the pool pair, use the price ratio as is 
     if (pair.tokenA === pair.symbol.split('-')[0]) {
       return total * (tokenA / tokenB);
     }
     // If the trade is made in the opposite direction, divide the total by the price ratio
     else {
-      return total / (tokenA / tokenB);
+      return total * (tokenB / tokenA);
     }
   }, 1);
 }
@@ -93,6 +93,7 @@ export function findRoutesWithIntermediateToken(
 
     if (currentToken === toToken) {
       routes.push(path);
+      console.log('Current token: ', currentToken, 'Current route: ', path  )
       visited.delete(currentToken);
       return;
     }
@@ -106,10 +107,12 @@ export function findRoutesWithIntermediateToken(
     for (const nextPair of nextPairs) {
       const nextToken = nextPair.tokenA === currentToken ? nextPair.tokenB : nextPair.tokenA;
       const nextPath = [...path];
+      console.log(Date.now(),'Current token: ', currentToken, 'next token: ', nextToken, 'next pair: ', `${nextPair.tokenA}-${nextPair.tokenB}`)
 
       // If the pair is in the correct order, add it directly to the path
       if (nextPair.tokenA === currentToken && nextPair.tokenB === nextToken) {
-        const nextCurPair: PoolPair = {
+        // nextPath.push(nextPair);
+        let nextCurPair: PoolPair = {
           symbol: nextPair.symbol,
           tokenA: nextPair.tokenA,
           tokenB: nextPair.tokenB,
@@ -119,13 +122,25 @@ export function findRoutesWithIntermediateToken(
       }
       // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the path
       else if (nextPair.tokenA === nextToken && nextPair.tokenB === currentToken) {
-        const invertedPair: PoolPair = {
+        let nextCurPair: PoolPair = {
           symbol: `${nextPair.tokenA}-${nextPair.tokenB}`,
           tokenA: nextPair.tokenA,
           tokenB: nextPair.tokenB,
           priceRatio: [1 / nextPair.priceRatio[1], 1 / nextPair.priceRatio[0]],
         };
-        nextPath.push(invertedPair);
+        nextPath.push(nextCurPair);
+      }
+      else
+      {
+        // nextPath.push(nextPair);
+        // nextPath.push(nextPair);
+        let nextCurPair: PoolPair = {
+          symbol: nextPair.symbol,
+          tokenA: nextPair.tokenB,
+          tokenB: nextPair.tokenA,
+          priceRatio: [1 / nextPair.priceRatio[0], nextPair.priceRatio[1]],
+        };
+        nextPath.push(nextCurPair);
       }
 
       dfs(nextToken, nextPath);
