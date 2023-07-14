@@ -57,31 +57,31 @@ describe('/routes', () => {
         priceRatio = [1, 5];
         break;
       case 'DFI-ETH':
-        priceRatio = [1 / 5, 1];
+        priceRatio = [5, 1];
         break;
       case 'BTC-DFI':
         priceRatio = [2, 1337];
         break;
       case 'DFI-BTC':
-        priceRatio = [1 / 1337, 1 / 2];
+        priceRatio = [1337, 2];
         break;
       case 'DOGE-DFI':
         priceRatio = [18933, 5];
         break;
       case 'DFI-DOGE':
-        priceRatio = [1 / 18933, 1 / 18933 / 5];
+        priceRatio = [5, 18933];
         break;
       case 'DOGE-ETH':
         priceRatio = [18617, 1];
         break;
       case 'ETH-DOGE':
-        priceRatio = [1 / 18617, 1];
+        priceRatio = [1, 18617];
         break;
       case 'BTC-ETH':
         priceRatio = [1, 132];
         break;
       case 'ETH-BTC':
-        priceRatio = [1 / 132, 1];
+        priceRatio = [132, 1];
         break;
       default:
         throw new Error(`Unknown pool pair symbol: ${symbol}`);
@@ -103,6 +103,7 @@ describe('/routes', () => {
 
       // Check for specific routes
       const expectedRoutes = [
+        ['DOGE-ETH', 'ETH-BTC'],
         ['DOGE-DFI', 'DFI-ETH', 'ETH-BTC'],
         ['DOGE-DFI', 'DFI-BTC'],
       ].map(route => route.map(symbol => createPoolPairFromSymbol(symbol)));
@@ -123,7 +124,7 @@ describe('/routes', () => {
       expect(best_route.toToken).toBe('BTC');
 
       const expectedRoutes = [
-        ['DOGE-DFI', 'DFI-BTC'],
+        ['DOGE-ETH', 'ETH-DFI', 'DFI-BTC'],
       ].map(route => route.map(symbol => createPoolPairFromSymbol(symbol)));
       console.log('Pool pairs: ', expectedRoutes);
       let estimatedReturn = calculateEstimatedReturn(expectedRoutes[0])
@@ -141,15 +142,20 @@ describe('/routes', () => {
   describe('getBestRoute', () => {
     it('should return best direct route (DOGE to ETH)', async () => {
       const bestRoute = await controller.getBestRoute('DOGE', 'ETH');
-      const expectedReturn = calculateEstimatedReturn([createPoolPair('DOGE', 'ETH', [18617, 1])]);
-      console.log("Expected return from DOGE to ETH: ", expectedReturn);
+      const expectedRoutes = [
+        ['DOGE-DFI', 'DFI-BTC', 'BTC-ETH'],
+      ].map(route => route.map(symbol => createPoolPairFromSymbol(symbol)));
+      console.log('Pool pairs: ', expectedRoutes);
+      let estimatedReturn = calculateEstimatedReturn(expectedRoutes[0])
+
       expect(bestRoute).toEqual({
         fromToken: 'DOGE',
         toToken: 'ETH',
-        bestRoute: [createPoolPair('DOGE', 'ETH', [18617, 1])],
-        estimatedReturn: expectedReturn,
+        bestRoute: expectedRoutes,
+        estimatedReturn: estimatedReturn,
       });
     }); 
+
     it('should return empty best route for unknown tokens (UNKONWN to BTC)', async () => {
       const bestRoute = await controller.getBestRoute('UNKNOWN', 'BTC');
       expect(bestRoute).toEqual({
@@ -200,7 +206,7 @@ describe('/routes', () => {
 
       const expectedRoutes = [
         // TODO: figure out why the third path doesn't work
-        // ['DOGE-DFI', 'DFI-BTC', 'BTC-ETH'],
+        ['DOGE-DFI', 'DFI-BTC', 'BTC-ETH'],
         ['DOGE-DFI', 'DFI-ETH'],
         ['DOGE-ETH']
       ].map(route => route.map(symbol => createPoolPairFromSymbol(symbol)));

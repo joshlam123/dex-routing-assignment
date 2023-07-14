@@ -42,7 +42,7 @@ export class DexRoutingService {
         bestRoute = [];
       }
     }
-
+    console.log('Returned best route: ', bestRoute);
     return {
       fromToken: routes.fromToken,
       toToken: routes.toToken,
@@ -53,8 +53,17 @@ export class DexRoutingService {
 }
 
 export function calculateEstimatedReturn(route: PoolPair[]): number {
-  // Replace this function with the actual function you're using in your code
-  return route.reduce((total, pair) => total * pair.priceRatio[0] / pair.priceRatio[1], 1);
+  return route.reduce((total, pair) => {
+    const [tokenA, tokenB] = pair.priceRatio;
+    // If the trade is made in the same direction as the pool pair, use the price ratio as is
+    if (pair.tokenA === pair.symbol.split('-')[0]) {
+      return total * (tokenB / tokenA);
+    }
+    // If the trade is made in the opposite direction, invert the price ratio
+    else {
+      return total * (tokenA / tokenB);
+    }
+  }, 1);
 }
 
 
@@ -67,10 +76,14 @@ export function findRoutesWithIntermediateToken(
   const visited: Set<TokenSymbol> = new Set();
 
   function dfs(currentToken: TokenSymbol, path: PoolPair[]): void {
+    if (visited.has(currentToken)) {
+      return;
+    }
     visited.add(currentToken);
 
     if (currentToken === toToken) {
       routes.push(path);
+      visited.delete(currentToken);
       return;
     }
 
