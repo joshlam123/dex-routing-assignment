@@ -224,25 +224,13 @@ describe('/routes', () => {
         toToken: 'ETH',
         bestRoute: [
           {
-            symbol: 'DOGE-DFI',
+            symbol: 'DOGE-ETH',
             tokenA: 'DOGE',
-            tokenB: 'DFI',
-            priceRatio: [ 1, 0.00026408915649923416 ]
-          },
-          {
-            symbol: 'DFI-BTC',
-            tokenA: 'DFI',
-            tokenB: 'BTC',
-            priceRatio: [ 668.5, 1 ]
-          },
-          {
-            symbol: 'BTC-ETH',
-            tokenA: 'BTC',
             tokenB: 'ETH',
-            priceRatio: [ 1, 132 ]
+            priceRatio: [ 1, 0.00005371434710211097 ]
           }
         ],
-        estimatedReturn: 0.0006983240223463687,
+        estimatedReturn: 0.00005371434710211097,
       });
     }); 
 

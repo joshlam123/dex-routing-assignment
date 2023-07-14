@@ -17,7 +17,7 @@ export class DexRoutingService {
 
   async getBestRoute(fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<BestRouteResult> {
     const routes = await this.listAllRoutes(fromTokenSymbol, toTokenSymbol);
-    console.log('From: ', fromTokenSymbol, 'To: ', toTokenSymbol, 'Best Routes: ', routes.routes);
+    // console.log('From: ', fromTokenSymbol, 'To: ', toTokenSymbol, 'Best Routes: ', routes.routes);
     const estimatedReturns = routes.routes.map((route) => calculateEstimatedReturn(route));
     console.log('Returns: ', estimatedReturns);
 
@@ -43,7 +43,7 @@ export class DexRoutingService {
         bestRoute = [];
       }
     }
-    console.log('Returned best route: ', bestRoute, ' best return ', bestEstimatedReturn);
+    // console.log('Returned best route: ', bestRoute, ' best return ', bestEstimatedReturn);
     return {
       fromToken: fromTokenSymbol,
       toToken: toTokenSymbol,
@@ -67,7 +67,16 @@ export function calculateEstimatedReturn(route: PoolPair[]): number {
   }, 1);
 }
 
-
+function normalizePriceRatio(poolPair: PoolPair): PoolPair {
+  const [tokenA, tokenB] = poolPair.priceRatio;
+  if (tokenA !== 1) {
+    return {
+      ...poolPair,
+      priceRatio: [1, tokenB / tokenA],
+    };
+  }
+  return poolPair;
+}
 
 export function findRoutesWithIntermediateToken(
   poolPairs: PoolPair[],
@@ -119,7 +128,8 @@ export function findRoutesWithIntermediateToken(
 
       // If the pair is in the correct order, add it directly to the path
     if (nextPair.tokenA === currentToken && nextPair.tokenB === nextToken) {
-      nextPath.push(nextPair);
+      let nextCurPair = normalizePriceRatio(nextPair);
+      nextPath.push(nextCurPair);
     }
     // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the path
     else if (nextPair.tokenA === nextToken && nextPair.tokenB === currentToken) {
