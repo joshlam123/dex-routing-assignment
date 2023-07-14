@@ -44,6 +44,18 @@ Each test checks if the returned value from the function is as expected. For exa
 
 <p>
 <b> Improvements </b>
-Please note that this is a recursive solution and could potentially be quite slow if there are a lot of tokens and pool pairs.
+Here are some improvements I feel can be made to the entire codebase.
+<ol>
+<li> The code can be modified to handle visited nodes: Modify the DFS algorithm to handle visited nodes to avoid infinite loops and unnecessary computations. Implement a visited node tracking mechanism to mark nodes that have already been visited during the traversal. This will prevent revisiting the same nodes and improve the efficiency of the algorithm. </li>
+
+<li> Early Exit Strategy: Introduce an early exit strategy within the DFS algorithm to stop traversing paths that have a lower estimated return than the current best route. This optimization can be implemented by maintaining a variable to track the highest estimated return found so far. If the estimated return of a path becomes lower than this value, the algorithm can stop exploring that path, as it cannot yield a better result. </li>
+
+<li> Depth Limit: Introduce a depth limit parameter to control the maximum depth of the DFS traversal. This limit can help prevent excessive computation and reduce processing time, especially in scenarios where the token network is large or contains cycles. By setting an appropriate depth limit, the algorithm can prioritize paths within a reasonable depth range and avoid exploring extremely long or cyclic paths that are unlikely to provide significant returns. </li>
+</ol>
 
 <b> Observations </b>
+<ol>
+<li> The Dex router uses a depth-first search (DFS) algorithm to explore all possible routes between tokens. This approach allows for flexibility in finding multiple routes but might result in longer processing times for large token networks.</li>
+<li> The Dex router considers the price ratios between token pairs to determine the estimated returns for each route. It normalizes the price ratios to [1, X] format, making it easier to perform calculations and comparisons.</li>
+<li> The Dex router supports intermediate token swaps, enabling routes that involve multiple tokens to reach the desired target token. This flexibility allows for efficient token swaps across different pairs and helps users find the most cost-effective routes.</li>
+</ol>
