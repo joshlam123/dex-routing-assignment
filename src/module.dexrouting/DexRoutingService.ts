@@ -6,35 +6,19 @@ export class DexRoutingService {
 
   async listAllRoutes(fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<AllRoutesResult> {
     const poolPairs = await this.dexService.listPools();
-    const routes: PoolPair[][] = [];
-    const intermediateTokens = findIntermediateTokens(poolPairs, fromTokenSymbol, toTokenSymbol);
-  
-    // Find direct routes without intermediate tokens
-    const directRoutes = findDirectRoutes(poolPairs, fromTokenSymbol, toTokenSymbol);
-    routes.push(...directRoutes);
-  
-    for (const intermediateToken of intermediateTokens) {
-      const intermediateRoutes = findRoutesWithIntermediateToken(
-        poolPairs,
-        fromTokenSymbol,
-        toTokenSymbol,
-        intermediateToken
-      );
-      routes.push(...intermediateRoutes);
-    }
+    const routes = findRoutesWithIntermediateToken(poolPairs, fromTokenSymbol, toTokenSymbol);
   
     return {
       fromToken: fromTokenSymbol,
       toToken: toTokenSymbol,
       routes,
     };
-  }  
-  
-  
+  } 
+
   async getBestRoute(fromTokenSymbol: TokenSymbol, toTokenSymbol: TokenSymbol): Promise<BestRouteResult> {
     const routes = await this.listAllRoutes(fromTokenSymbol, toTokenSymbol);
     console.log('From: ', fromTokenSymbol, 'To: ', toTokenSymbol, 'Best Routes: ', routes);
-    const estimatedReturns = routes.routes.map((route) => calculateRouteReturn(route));
+    const estimatedReturns = routes.routes.map((route) => calculateEstimatedReturn(route));
 
     let bestIndex = 0;
     let bestEstimatedReturn = 0;
@@ -58,175 +42,73 @@ export class DexRoutingService {
         bestRoute = [];
       }
     }
-  
+
     return {
       fromToken: routes.fromToken,
       toToken: routes.toToken,
       bestRoute,
       estimatedReturn: bestEstimatedReturn,
     };
-  }
-  
+  } 
 }
+
+export function calculateEstimatedReturn(route: PoolPair[]): number {
+  // Replace this function with the actual function you're using in your code
+  return route.reduce((total, pair) => total * pair.priceRatio[0] / pair.priceRatio[1], 1);
+}
+
 
 export function findRoutesWithIntermediateToken(
   poolPairs: PoolPair[],
   fromToken: TokenSymbol,
-  toToken: TokenSymbol,
-  intermediateToken: TokenSymbol
+  toToken: TokenSymbol
 ): PoolPair[][] {
   const routes: PoolPair[][] = [];
-  const intermediatePairs = poolPairs.filter(
-    (pair) =>
-      (pair.tokenA === intermediateToken && pair.tokenB === fromToken) ||
-      (pair.tokenA === fromToken && pair.tokenB === intermediateToken) ||
-      (pair.tokenA === intermediateToken && pair.tokenB === toToken) ||
-      (pair.tokenA === toToken && pair.tokenB === intermediateToken)
-  );
+  const visited: Set<TokenSymbol> = new Set();
 
-  for (const intermediatePair of intermediatePairs) {
-    const startPairs = findDirectRoutes(poolPairs, fromToken, intermediatePair.tokenA);
-    const endPairs = findDirectRoutes(poolPairs, intermediatePair.tokenB, toToken);
+  function dfs(currentToken: TokenSymbol, path: PoolPair[]): void {
+    visited.add(currentToken);
 
-    for (const startPair of startPairs) {
-      for (const endPair of endPairs) {
-        const route: PoolPair[] = [];
+    if (currentToken === toToken) {
+      routes.push(path);
+      return;
+    }
 
-        // If the intermediate pair is in the correct order, add it directly to the route
-        if (
-          intermediatePair.tokenA === intermediateToken &&
-          intermediatePair.tokenB === fromToken
-        ) {
-          route.push(...startPair);
-          route.push(intermediatePair);
-          route.push(...endPair);
-        }
-        // If the intermediate pair is in the inverted order, create a new pair with inverted tokens and add it to the route
-        else if (
-          intermediatePair.tokenA === fromToken &&
-          intermediatePair.tokenB === intermediateToken
-        ) {
-          const invertedIntermediatePair: PoolPair = {
-            symbol: `${intermediatePair.tokenB}-${intermediatePair.tokenA}`,
-            tokenA: intermediatePair.tokenB,
-            tokenB: intermediatePair.tokenA,
-            priceRatio: [1 / intermediatePair.priceRatio[0], 1 / intermediatePair.priceRatio[1]],
-          };
-          route.push(...startPair);
-          route.push(invertedIntermediatePair);
-          route.push(...endPair);
-        }
-        // If the intermediate pair is in the correct order with respect to the destination token, add it to the route
-        else if (
-          intermediatePair.tokenA === intermediateToken &&
-          intermediatePair.tokenB === toToken
-        ) {
-          route.push(...startPair);
-          route.push(intermediatePair);
-          route.push(...endPair);
-        }
-        // If the intermediate pair is in the inverted order with respect to the destination token, create a new pair with inverted tokens and add it to the route
-        else if (
-          intermediatePair.tokenA === toToken &&
-          intermediatePair.tokenB === intermediateToken
-        ) {
-          const invertedIntermediatePair: PoolPair = {
-            symbol: `${intermediatePair.tokenB}-${intermediatePair.tokenA}`,
-            tokenA: intermediatePair.tokenB,
-            tokenB: intermediatePair.tokenA,
-            priceRatio: [1 / intermediatePair.priceRatio[1], 1 / intermediatePair.priceRatio[0]],
-          };
-          route.push(...startPair);
-          route.push(invertedIntermediatePair);
-          route.push(...endPair);
-        }
+    const nextPairs = poolPairs.filter(
+      (pair) =>
+        (pair.tokenA === currentToken && !visited.has(pair.tokenB)) ||
+        (pair.tokenB === currentToken && !visited.has(pair.tokenA))
+    );
 
-        routes.push(route);
+    for (const nextPair of nextPairs) {
+      const nextToken = nextPair.tokenA === currentToken ? nextPair.tokenB : nextPair.tokenA;
+      const nextPath = [...path];
+
+      // If the pair is in the correct order, add it directly to the path
+      if (nextPair.tokenA === currentToken && nextPair.tokenB === nextToken) {
+        nextPath.push(nextPair);
       }
+      // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the path
+      else if (nextPair.tokenA === nextToken && nextPair.tokenB === currentToken) {
+        const invertedPair: PoolPair = {
+          symbol: `${nextPair.tokenB}-${nextPair.tokenA}`,
+          tokenA: nextPair.tokenB,
+          tokenB: nextPair.tokenA,
+          priceRatio: [1 / nextPair.priceRatio[1], 1 / nextPair.priceRatio[0]],
+        };
+        nextPath.push(invertedPair);
+      }
+
+      dfs(nextToken, nextPath);
     }
+
+    visited.delete(currentToken);
   }
 
+  dfs(fromToken, []);
 
   return routes;
 }
-
-
-
-export function findDirectRoutes(poolPairs: PoolPair[], fromToken: TokenSymbol, toToken: TokenSymbol): PoolPair[][] {
-  const routes: PoolPair[][] = [];
-  const directPairs = poolPairs.filter(
-    (pair) =>
-      (pair.tokenA === fromToken && pair.tokenB === toToken) ||
-      (pair.tokenA === toToken && pair.tokenB === fromToken)
-  );
-
-  for (const pair of directPairs) {
-    const route: PoolPair[] = [];
-
-    // If the pair is in the correct order, add it directly to the route
-    if (pair.tokenA === fromToken && pair.tokenB === toToken) {
-      route.push(pair);
-    }
-    // If the pair is in the inverted order, create a new pair with inverted tokens and add it to the route
-    else if (pair.tokenA === toToken && pair.tokenB === fromToken) {
-      const invertedPair: PoolPair = {
-        symbol: `${pair.tokenB}-${pair.tokenA}`,
-        tokenA: pair.tokenB,
-        tokenB: pair.tokenA,
-        priceRatio: [1 / pair.priceRatio[1], 1 / pair.priceRatio[0]],
-      };
-      route.push(invertedPair);
-    }
-
-    routes.push(route);
-  }
-
-  return routes;
-}
-
-export function findIntermediateTokens(poolPairs: PoolPair[], fromToken: TokenSymbol, toToken: TokenSymbol): TokenSymbol[] {
-  const intermediateTokens = new Set<TokenSymbol>();
-
-  for (const pair of poolPairs) {
-    if (
-      (pair.tokenA === fromToken || pair.tokenB === fromToken) &&
-      (pair.tokenA === toToken || pair.tokenB === toToken)
-    ) {
-      // Found a pool pair that connects the fromToken and toToken directly
-      return [];
-    }
-
-    if (pair.tokenA === fromToken || pair.tokenB === fromToken) {
-      intermediateTokens.add(pair.tokenA === fromToken ? pair.tokenB : pair.tokenA);
-    }
-  }
-
-  return Array.from(intermediateTokens);
-}
-
-export function findBestRoute(routes: PoolPair[][]): PoolPair[] {
-  let bestRoute: PoolPair[] = [];
-
-  for (const route of routes) {
-    if (calculateRouteReturn(route) > calculateRouteReturn(bestRoute)) {
-      bestRoute = route;
-    }
-  }
-
-  return bestRoute;
-}
-
-export function calculateRouteReturn(route: PoolPair[]): number {
-  let returnRatio = 1;
-
-  for (const pair of route) {
-    const [tokenA, tokenB] = pair.priceRatio;
-    returnRatio *= tokenA / tokenB;
-  }
-
-  return returnRatio;
-}
-
 
 export interface AllRoutesResult {
   fromToken: TokenSymbol
