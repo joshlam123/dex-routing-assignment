@@ -30,6 +30,7 @@ The file DexRoutingModule.e2e.ts contains end-to-end tests for the DexRoutingCon
     <li>Returning the best route (ETH to BTC) </li>
     <li>Returning an empty best route for same tokens (ETH to ETH) </li>
     <li>Returning an empty best route for tokens without pool pairs (LTC to XRP)</li>
+    </ul>
  </li>
 
  <li>listAllRoutes: This is a suite of tests for the listAllRoutes function. It includes tests for:
@@ -38,7 +39,9 @@ The file DexRoutingModule.e2e.ts contains end-to-end tests for the DexRoutingCon
     <li> Returning empty routes for unknown tokens (UNKNOWN to BTC) </li>
     <li> Returning empty routes for same tokens (ETH to ETH) </li>
     <li> Returning empty routes for tokens without pool pairs (LTC to XRP) </li>
+    </ul>
 </li>
+</ol>
 
 Each test checks if the returned value from the function is as expected. For example, it checks if the returned routes are correct, if the fromToken and toToken are correct, and if the estimated return is correct. Some tests also check if the function handles edge cases correctly, such as when the fromToken and toToken are the same or when the tokens are unknown.
 
