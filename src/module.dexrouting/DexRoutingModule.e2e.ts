@@ -86,10 +86,11 @@ describe('/routes', () => {
       default:
         throw new Error(`Unknown pool pair symbol: ${symbol}`);
     }
-    if (pool_pair_format == true) {
-      return { symbol: `${tokenA}-${tokenB}`, tokenA, tokenB, priceRatio };
+    const [priceA, priceB] = priceRatio;
+    if (tokenA === symbol.split('-')[0]) {
+      return { tokenA, tokenB, symbol, priceRatio: [priceA, priceB] };
     } else {
-      return { symbol, tokenA, tokenB, priceRatio };
+      return { tokenA, tokenB, symbol, priceRatio: [priceB, priceA] };
     }
   }
   
@@ -165,15 +166,17 @@ describe('/routes', () => {
         estimatedReturn: 0,
       });
     });
-    it('should return best route (ETH to BTC)', async () => {
+    it('should return best route from ETH to BTC', async () => {
       const bestRoute = await controller.getBestRoute('ETH', 'BTC');
-      const expectedReturn = calculateEstimatedReturn([createPoolPair('ETH', 'BTC', [1, 132], true)]);
-      console.log("Expected return from ETH to BTC: ", expectedReturn);
       expect(bestRoute).toEqual({
         fromToken: 'ETH',
         toToken: 'BTC',
-        bestRoute: [createPoolPair('ETH', 'BTC', [1, 132], true)],
-        estimatedReturn: expectedReturn,
+        bestRoute: [
+          [
+            ['BTC-ETH'],
+          ].map(route => route.map(symbol => createPoolPairFromSymbol(symbol)))
+        ],
+        estimatedReturn: 0.007575757575757576,
       });
     });
     it('should return empty best route for same tokens (ETH to ETH)', async () => {
